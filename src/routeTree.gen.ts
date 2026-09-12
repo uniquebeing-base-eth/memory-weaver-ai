@@ -14,6 +14,9 @@ import { Route as CreateRouteImport } from './routes/create'
 import { Route as DiaryRouteImport } from './routes/diary'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as MemoryIdRouteImport } from './routes/memory.$id'
+import { Route as ApiMemoryGenerateRouteImport } from './routes/api/memory/generate'
+import { Route as ApiMemoryQuoteRouteImport } from './routes/api/memory/quote'
+import { Route as ApiMemoryStatusTaskIdRouteImport } from './routes/api/memory/status.$taskId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -40,6 +43,21 @@ const MemoryIdRoute = MemoryIdRouteImport.update({
   path: '/memory/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMemoryGenerateRoute = ApiMemoryGenerateRouteImport.update({
+  id: '/api/memory/generate',
+  path: '/api/memory/generate',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMemoryQuoteRoute = ApiMemoryQuoteRouteImport.update({
+  id: '/api/memory/quote',
+  path: '/api/memory/quote',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiMemoryStatusTaskIdRoute = ApiMemoryStatusTaskIdRouteImport.update({
+  id: '/api/memory/status/$taskId',
+  path: '/api/memory/status/$taskId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -47,6 +65,9 @@ export interface FileRoutesByFullPath {
   '/diary': typeof DiaryRoute
   '/profile': typeof ProfileRoute
   '/memory/$id': typeof MemoryIdRoute
+  '/api/memory/generate': typeof ApiMemoryGenerateRoute
+  '/api/memory/quote': typeof ApiMemoryQuoteRoute
+  '/api/memory/status/$taskId': typeof ApiMemoryStatusTaskIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -54,6 +75,9 @@ export interface FileRoutesByTo {
   '/diary': typeof DiaryRoute
   '/profile': typeof ProfileRoute
   '/memory/$id': typeof MemoryIdRoute
+  '/api/memory/generate': typeof ApiMemoryGenerateRoute
+  '/api/memory/quote': typeof ApiMemoryQuoteRoute
+  '/api/memory/status/$taskId': typeof ApiMemoryStatusTaskIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -62,13 +86,41 @@ export interface FileRoutesById {
   '/diary': typeof DiaryRoute
   '/profile': typeof ProfileRoute
   '/memory/$id': typeof MemoryIdRoute
+  '/api/memory/generate': typeof ApiMemoryGenerateRoute
+  '/api/memory/quote': typeof ApiMemoryQuoteRoute
+  '/api/memory/status/$taskId': typeof ApiMemoryStatusTaskIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/create' | '/diary' | '/profile' | '/memory/$id'
+  fullPaths:
+    | '/'
+    | '/create'
+    | '/diary'
+    | '/profile'
+    | '/memory/$id'
+    | '/api/memory/generate'
+    | '/api/memory/quote'
+    | '/api/memory/status/$taskId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/create' | '/diary' | '/profile' | '/memory/$id'
-  id: '__root__' | '/' | '/create' | '/diary' | '/profile' | '/memory/$id'
+  to:
+    | '/'
+    | '/create'
+    | '/diary'
+    | '/profile'
+    | '/memory/$id'
+    | '/api/memory/generate'
+    | '/api/memory/quote'
+    | '/api/memory/status/$taskId'
+  id:
+    | '__root__'
+    | '/'
+    | '/create'
+    | '/diary'
+    | '/profile'
+    | '/memory/$id'
+    | '/api/memory/generate'
+    | '/api/memory/quote'
+    | '/api/memory/status/$taskId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -77,6 +129,9 @@ export interface RootRouteChildren {
   DiaryRoute: typeof DiaryRoute
   ProfileRoute: typeof ProfileRoute
   MemoryIdRoute: typeof MemoryIdRoute
+  ApiMemoryGenerateRoute: typeof ApiMemoryGenerateRoute
+  ApiMemoryQuoteRoute: typeof ApiMemoryQuoteRoute
+  ApiMemoryStatusTaskIdRoute: typeof ApiMemoryStatusTaskIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -116,6 +171,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof MemoryIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/memory/generate': {
+      id: '/api/memory/generate'
+      path: '/api/memory/generate'
+      fullPath: '/api/memory/generate'
+      preLoaderRoute: typeof ApiMemoryGenerateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/memory/quote': {
+      id: '/api/memory/quote'
+      path: '/api/memory/quote'
+      fullPath: '/api/memory/quote'
+      preLoaderRoute: typeof ApiMemoryQuoteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/memory/status/$taskId': {
+      id: '/api/memory/status/$taskId'
+      path: '/api/memory/status/$taskId'
+      fullPath: '/api/memory/status/$taskId'
+      preLoaderRoute: typeof ApiMemoryStatusTaskIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -125,6 +201,9 @@ const rootRouteChildren: RootRouteChildren = {
   DiaryRoute: DiaryRoute,
   ProfileRoute: ProfileRoute,
   MemoryIdRoute: MemoryIdRoute,
+  ApiMemoryGenerateRoute: ApiMemoryGenerateRoute,
+  ApiMemoryQuoteRoute: ApiMemoryQuoteRoute,
+  ApiMemoryStatusTaskIdRoute: ApiMemoryStatusTaskIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
