@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { ArrowLeft, Wand2 } from "lucide-react";
+import { ArrowLeft, Wand2, RefreshCw } from "lucide-react";
 import { Screen } from "@/components/Screen";
-import { addMemory, ARTWORK_POOL, CURRENT_USER, MOOD_LABEL } from "@/lib/diary-store";
-import { quote, routeAgent, settleX402, type Mood } from "@/lib/protocol";
+import { addMemory, CURRENT_USER, MOOD_LABEL } from "@/lib/diary-store";
+import type { Mood } from "@/lib/protocol";
+import { countWords, MIN_MEMORY_WORDS, type GenerationError, type Quote } from "@/lib/agent/types";
+import { payAndGenerate, requestQuote, retryGeneration } from "@/lib/generation-client";
 import mascot from "@/assets/mascot.png";
 
 export const Route = createFileRoute("/create")({
@@ -35,54 +37,165 @@ const moodTone: Record<Mood, string> = {
 
 const steps = [
   "Reading your memory…",
-  "Finding the right feeling…",
+  "Finding the right artist…",
   "Painting it, slowly…",
   "Adding the last details…",
 ];
+
+type Phase = "writing" | "quoting" | "confirm" | "generating" | "error";
 
 function CreateMemory() {
   const { seed } = Route.useSearch();
   const navigate = useNavigate();
   const [story, setStory] = useState(seed ? `${seed}: ` : "");
   const [mood, setMood] = useState<Mood>("warm");
-  const [busy, setBusy] = useState(false);
+  const [phase, setPhase] = useState<Phase>("writing");
   const [step, setStep] = useState(0);
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const [error, setError] = useState<GenerationError | null>(null);
+  const [lastTaskId, setLastTaskId] = useState<string | null>(null);
 
-  const price = quote(routeAgent({ memory: story, mood }));
+  const words = countWords(story);
+  const enoughWords = words >= MIN_MEMORY_WORDS;
 
-  async function onCreate() {
-    if (story.trim().length < 8) return;
-    setBusy(true);
-    for (let i = 0; i < steps.length; i++) {
-      setStep(i);
-      await new Promise((r) => setTimeout(r, 850));
+  async function onGetQuote() {
+    setError(null);
+    setPhase("quoting");
+    const outcome = await requestQuote(story.trim());
+    if (!outcome.ok) {
+      setError(outcome.error);
+      setPhase("error");
+      return;
     }
-    const agent = routeAgent({ memory: story, mood });
-    const receipt = await settleX402(quote(agent));
+    setQuote(outcome.quote);
+    setPhase("confirm");
+  }
+
+  function animate() {
+    setStep(0);
+    const timer = setInterval(() => setStep((s) => (s < steps.length - 1 ? s + 1 : s)), 4000);
+    return () => clearInterval(timer);
+  }
+
+  function finish(imageUrl: string, title: string, taskId: string) {
     const id = `m${Date.now()}`;
     addMemory({
       id,
-      title: story.trim().split(/[.!?]/)[0]!.slice(0, 60) || "Untitled memory",
+      title: title || story.trim().split(/[.!?]/)[0]!.slice(0, 60) || "Untitled memory",
       story: story.trim(),
       mood,
-      imageUrl: ARTWORK_POOL[Math.floor(Math.random() * ARTWORK_POOL.length)]!,
+      imageUrl,
       author: CURRENT_USER,
       createdAt: "just now",
       status: "saved",
       hearts: 0,
       keepsakes: 0,
-      receipt,
+      ...(quote
+        ? {
+            receipt: {
+              agentUsd: quote.breakdown.agentUsd,
+              feeUsd: quote.breakdown.feeUsd,
+              totalUsd: quote.breakdown.totalUsd,
+              reference: taskId,
+              settledAt: new Date().toISOString(),
+            },
+          }
+        : {}),
     });
     navigate({ to: "/memory/$id", params: { id } });
   }
 
-  if (busy) return <GeneratingState step={step} />;
+  async function onConfirm() {
+    if (!quote) return;
+    setPhase("generating");
+    const stop = animate();
+    const result = await payAndGenerate(quote);
+    stop();
+
+    if (result.status === "completed" && result.imageUrl) {
+      finish(result.imageUrl, result.title ?? "", result.taskId);
+      return;
+    }
+    setLastTaskId(result.taskId || quote.quoteId);
+    setError(
+      result.error ?? {
+        code: "generation_failed",
+        message: "We couldn't finish your artwork.",
+        retryable: true,
+      },
+    );
+    setPhase("error");
+  }
+
+  async function onRetry() {
+    if (!lastTaskId) {
+      setPhase("writing");
+      return;
+    }
+    setPhase("generating");
+    const stop = animate();
+    const result = await retryGeneration(lastTaskId);
+    stop();
+    if (result.status === "completed" && result.imageUrl) {
+      finish(result.imageUrl, result.title ?? "", result.taskId);
+      return;
+    }
+    setError(result.error ?? error);
+    setPhase("error");
+  }
+
+  if (phase === "generating") return <GeneratingState step={step} />;
+
+  if (phase === "error" && error) {
+    const backToWriting =
+      error.code === "memory_too_short" || error.code === "insufficient_visual_detail";
+    return (
+      <Screen nav={false}>
+        <div className="flex min-h-screen flex-col items-center justify-center gap-5 px-8 text-center">
+          <img src={mascot} alt="" width={768} height={768} className="w-28" />
+          <h1 className="text-[1.75rem] leading-tight font-semibold">
+            {backToWriting ? "One more detail?" : "That didn't work"}
+          </h1>
+          <p className="text-sm font-semibold text-muted-foreground">
+            {error.followUp ?? error.message}
+          </p>
+          <div className="flex w-full max-w-xs flex-col gap-2">
+            {backToWriting ? (
+              <button
+                onClick={() => setPhase("writing")}
+                className="press w-full rounded-full bg-primary py-4 text-base font-bold text-primary-foreground"
+              >
+                Keep writing
+              </button>
+            ) : (
+              <>
+                {error.retryable && (
+                  <button
+                    onClick={onRetry}
+                    className="press flex w-full items-center justify-center gap-2 rounded-full bg-primary py-4 text-base font-bold text-primary-foreground"
+                  >
+                    <RefreshCw className="h-4 w-4" /> Try again
+                  </button>
+                )}
+                <button
+                  onClick={() => setPhase("writing")}
+                  className="press w-full rounded-full bg-card py-4 text-base font-bold shadow-soft"
+                >
+                  Back to my memory
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </Screen>
+    );
+  }
 
   return (
     <Screen>
       <header className="flex items-center gap-3 px-6 pt-7">
         <button
-          onClick={() => navigate({ to: "/" })}
+          onClick={() => (phase === "confirm" ? setPhase("writing") : navigate({ to: "/" }))}
           aria-label="Back"
           className="press grid h-10 w-10 place-items-center rounded-full bg-card shadow-soft"
         >
@@ -99,13 +212,18 @@ function CreateMemory() {
           <textarea
             id="story"
             value={story}
-            onChange={(e) => setStory(e.target.value)}
+            onChange={(e) => {
+              setStory(e.target.value);
+              if (phase === "confirm") setPhase("writing");
+            }}
             rows={7}
             placeholder="The night we walked home in the rain and didn't mind at all…"
             className="mt-3 w-full resize-none bg-transparent font-display text-[1.35rem] leading-snug outline-none placeholder:text-muted-foreground/60"
           />
           <p className="text-right text-xs font-semibold text-muted-foreground">
-            {story.trim().length} characters
+            {enoughWords
+              ? `${words} words`
+              : `${words}/${MIN_MEMORY_WORDS} words — tell us a little more`}
           </p>
         </div>
       </section>
@@ -120,7 +238,9 @@ function CreateMemory() {
               key={m}
               onClick={() => setMood(m)}
               className={`press rounded-2xl py-3 text-sm font-bold ${moodTone[m]} ${
-                mood === m ? "ring-2 ring-foreground ring-offset-2 ring-offset-background" : "opacity-70"
+                mood === m
+                  ? "ring-2 ring-foreground ring-offset-2 ring-offset-background"
+                  : "opacity-70"
               }`}
             >
               {MOOD_LABEL[m]}
@@ -129,34 +249,47 @@ function CreateMemory() {
         </div>
       </section>
 
-      <section className="px-6 pt-6">
-        <div className="rounded-3xl border border-dashed border-border p-5 text-sm">
-          <div className="flex justify-between font-semibold">
-            <span className="text-muted-foreground">Artwork</span>
-            <span>${price.agentUsd.toFixed(2)}</span>
+      {phase === "confirm" && quote && (
+        <section className="px-6 pt-6">
+          <div className="rounded-3xl border border-dashed border-border p-5 text-sm">
+            <div className="flex justify-between font-semibold">
+              <span className="text-muted-foreground">Artwork</span>
+              <span>${quote.breakdown.agentUsd.toFixed(2)}</span>
+            </div>
+            <div className="mt-1.5 flex justify-between font-semibold">
+              <span className="text-muted-foreground">Dear Diary fee</span>
+              <span>${quote.breakdown.feeUsd.toFixed(2)}</span>
+            </div>
+            <div className="mt-3 flex justify-between border-t border-border pt-3 text-base font-bold">
+              <span>Total</span>
+              <span>${quote.breakdown.totalUsd.toFixed(2)}</span>
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Paid instantly from your wallet. We pick the best artist for your memory
+              automatically.
+            </p>
           </div>
-          <div className="mt-1.5 flex justify-between font-semibold">
-            <span className="text-muted-foreground">Dear Diary fee (10%)</span>
-            <span>${price.feeUsd.toFixed(2)}</span>
-          </div>
-          <div className="mt-3 flex justify-between border-t border-border pt-3 text-base font-bold">
-            <span>Total</span>
-            <span>${price.totalUsd.toFixed(2)}</span>
-          </div>
-          <p className="mt-3 text-xs text-muted-foreground">
-            Paid instantly from your wallet. We pick the best artist for your memory automatically.
-          </p>
-        </div>
-      </section>
+        </section>
+      )}
 
       <div className="px-6 pt-6">
-        <button
-          onClick={onCreate}
-          disabled={story.trim().length < 8}
-          className="press flex w-full items-center justify-center gap-2 rounded-full bg-primary py-4 text-base font-bold text-primary-foreground disabled:opacity-40"
-        >
-          <Wand2 className="h-4 w-4" /> Make my artwork
-        </button>
+        {phase === "confirm" && quote ? (
+          <button
+            onClick={onConfirm}
+            className="press flex w-full items-center justify-center gap-2 rounded-full bg-primary py-4 text-base font-bold text-primary-foreground"
+          >
+            <Wand2 className="h-4 w-4" /> Create memory · ${quote.breakdown.totalUsd.toFixed(2)}
+          </button>
+        ) : (
+          <button
+            onClick={onGetQuote}
+            disabled={!enoughWords || phase === "quoting"}
+            className="press flex w-full items-center justify-center gap-2 rounded-full bg-primary py-4 text-base font-bold text-primary-foreground disabled:opacity-40"
+          >
+            <Wand2 className="h-4 w-4" />
+            {phase === "quoting" ? "Getting your price…" : "Make my artwork"}
+          </button>
+        )}
       </div>
     </Screen>
   );
