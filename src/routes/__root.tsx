@@ -77,14 +77,21 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: "Dear Diary — turn a memory into artwork" },
+      {
+        name: "description",
+        content:
+          "Write down a memory and Dear Diary quietly finds an artist to paint it for you. Keep it, gift it, or mint it.",
+      },
+      { name: "author", content: "Dear Diary" },
+      { property: "og:title", content: "Dear Diary — turn a memory into artwork" },
+      {
+        property: "og:description",
+        content: "Write a memory, watch it come alive, receive your artwork.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { name: "twitter:site", content: "@Lovable" },
+
     ],
     links: [
       {
