@@ -4,16 +4,16 @@
  */
 
 export interface DearDiaryConfig {
-  scanApiKey?: string;
+  scanApiKey?: string | undefined;
   scanBaseUrl: string;
-  facilitatorUrl?: string;
+  facilitatorUrl?: string | undefined;
   feeWallet: string;
   network: string;
   generationFeeUsd: number;
-  imageStorageUrl?: string;
-  imageStorageApiKey?: string;
+  imageStorageUrl?: string | undefined;
+  imageStorageApiKey?: string | undefined;
   discoveryQuery: string;
-  lovableApiKey?: string;
+  lovableApiKey?: string | undefined;
   isProduction: boolean;
 }
 

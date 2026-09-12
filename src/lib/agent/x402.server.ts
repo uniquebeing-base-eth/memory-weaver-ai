@@ -116,7 +116,7 @@ export async function settlePayment(
   }
 
   try {
-    const { HTTPFacilitatorClient } = await import("@x402/core/facilitator");
+    const { HTTPFacilitatorClient } = await import("@x402/core/http");
     const facilitator = new HTTPFacilitatorClient({ url: config.facilitatorUrl });
     const result = (await (
       facilitator as unknown as {

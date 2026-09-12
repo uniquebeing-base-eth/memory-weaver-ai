@@ -10,24 +10,24 @@ export interface NormalizedAgent {
   id: string;
   name: string;
   chain: string;
-  registrationUri?: string;
+  registrationUri?: string | undefined;
   description: string;
   services: NormalizedService[];
   supportsX402: boolean;
   active: boolean;
   protocols: string[];
   capabilities: string[];
-  wallet?: string;
-  priceUsd?: number;
-  reputation?: number;
+  wallet?: string | undefined;
+  priceUsd?: number | undefined;
+  reputation?: number | undefined;
   raw: Record<string, unknown>;
 }
 
 export interface NormalizedService {
   name: string;
   endpoint: string;
-  protocol?: string;
-  priceUsd?: number;
+  protocol?: string | undefined;
+  priceUsd?: number | undefined;
   x402: boolean;
 }
 
