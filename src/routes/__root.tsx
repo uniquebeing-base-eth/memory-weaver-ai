@@ -124,10 +124,28 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  // Farcaster Mini App: tell the host we've rendered, once, after mount.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { sdk } = await import("@farcaster/miniapp-sdk");
+        if (!(await sdk.isInMiniApp())) return;
+        if (!cancelled) await sdk.actions.ready();
+      } catch {
+        /* not running inside Farcaster */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
       <Outlet />
     </QueryClientProvider>
   );
+
 }
